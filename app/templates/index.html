@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AutoHealOps | Self-Healing Platform</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <header>
+        <h1>AutoHealOps</h1>
+        <p>Self-Healing Application Deployment Platform</p>
+    </header>
+
+    <main>
+
+        <section class="welcome">
+            <h2>Application Monitoring</h2>
+            <p>Monitor application health, detect failures and recover automatically.</p>
+        </section>
+
+        <section class="status-card">
+
+            <h3>Application Status</h3>
+
+            <p class="status {{ status|lower }}">
+                {{ status }}
+            </p>
+
+            <p>Current application health status.</p>
+
+        </section>
+
+        <section class="info-card">
+
+            <h3>Application Information</h3>
+
+            <p>Application: AutoHealOps</p>
+            <p>Version: {{ version }}</p>
+            <p>Framework: Flask</p>
+
+        </section>
+
+        <section class="control-card">
+
+            <h3>Failure Simulation</h3>
+
+            <p>Test application failure and recovery mechanisms.</p>
+
+            <button class="failure-btn"
+                    onclick="simulateFailure()">
+                Simulate Failure
+            </button>
+
+            <button class="restore-btn"
+                    onclick="restoreApplication()">
+                Restore Application
+            </button>
+
+            <p id="message"></p>
+
+        </section>
+
+        <footer>
+            <p>AutoHealOps | Automated Recovery Platform</p>
+        </footer>
+
+    </main>
+
+    <script>
+
+        async function simulateFailure() {
+
+            const response = await fetch(
+                "/simulate/unhealthy",
+                { method: "POST" }
+            );
+
+            const result = await response.json();
+
+            document.getElementById("message").innerText =
+                result.message;
+
+            location.reload();
+        }
+
+        async function restoreApplication() {
+
+            const response = await fetch(
+                "/simulate/healthy",
+                { method: "POST" }
+            );
+
+            const result = await response.json();
+
+            document.getElementById("message").innerText =
+                result.message;
+
+            location.reload();
+        }
+
+    </script>
+
+</body>
+</html>
