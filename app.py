@@ -1,12 +1,19 @@
+
 import os
-from flask import Flask, jsonify, render_template
 import time
+
+from flask import Flask, jsonify, render_template
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
 app = Flask(
     __name__,
     template_folder="app/templates",
     static_folder="app/static"
 )
+
+# --------------------------------------------------
+# Application Configuration
+# --------------------------------------------------
 
 APP_NAME = "AutoHealOps"
 APP_VERSION = os.getenv("APP_VERSION", "1.0")
@@ -19,9 +26,33 @@ UNRESPONSIVE_DELAY_SECONDS = int(
     os.getenv("UNRESPONSIVE_DELAY_SECONDS", "30")
 )
 
+# Application state
 app_status = "healthy"
 app_unresponsive = False
 
+
+# --------------------------------------------------
+# Prometheus Metrics
+# --------------------------------------------------
+
+health_checks_total = Counter(
+    "autohealops_health_checks_total",
+    "Total application health checks",
+    ["result"]
+)
+
+health_status_metric = Gauge(
+    "autohealops_health_status",
+    "Application health status (1 healthy, 0 unhealthy)"
+)
+
+# Initialize the application health metric
+health_status_metric.set(1)
+
+
+# --------------------------------------------------
+# Home Route
+# --------------------------------------------------
 
 @app.route("/")
 def home():
@@ -32,10 +63,14 @@ def home():
     )
 
 
+# --------------------------------------------------
+# Health Check Route
+# --------------------------------------------------
+
 @app.route("/health")
 def health():
 
-    # Simulate an application that is not responding
+    # Simulate an unresponsive application
     if app_unresponsive:
         time.sleep(UNRESPONSIVE_DELAY_SECONDS)
 
@@ -46,10 +81,20 @@ def health():
     }
 
     if app_status == "healthy":
+        health_checks_total.labels(result="healthy").inc()
+        health_status_metric.set(1)
+
         return jsonify(response), 200
+
+    health_checks_total.labels(result="unhealthy").inc()
+    health_status_metric.set(0)
 
     return jsonify(response), 503
 
+
+# --------------------------------------------------
+# Failure Simulation: Unhealthy
+# --------------------------------------------------
 
 @app.route("/simulate/unhealthy", methods=["POST"])
 def simulate_unhealthy():
@@ -58,11 +103,17 @@ def simulate_unhealthy():
     app_status = "unhealthy"
     app_unresponsive = False
 
+    health_status_metric.set(0)
+
     return jsonify({
         "message": "Failure simulated successfully",
         "status": app_status
-    })
+    }), 200
 
+
+# --------------------------------------------------
+# Failure Simulation: Unresponsive
+# --------------------------------------------------
 
 @app.route("/simulate/unresponsive", methods=["POST"])
 def simulate_unresponsive():
@@ -73,8 +124,12 @@ def simulate_unresponsive():
     return jsonify({
         "message": "Application is now simulating an unresponsive state",
         "status": "unresponsive"
-    })
+    }), 200
 
+
+# --------------------------------------------------
+# Recovery Simulation: Healthy
+# --------------------------------------------------
 
 @app.route("/simulate/healthy", methods=["POST"])
 def simulate_healthy():
@@ -83,11 +138,17 @@ def simulate_healthy():
     app_status = "healthy"
     app_unresponsive = False
 
+    health_status_metric.set(1)
+
     return jsonify({
         "message": "Application restored successfully",
         "status": app_status
-    })
+    }), 200
 
+
+# --------------------------------------------------
+# Failure Simulation: Crash
+# --------------------------------------------------
 
 @app.route("/simulate/crash", methods=["POST"])
 def simulate_crash():
@@ -103,7 +164,21 @@ def simulate_crash():
     os._exit(1)
 
 
-# Handle invalid URLs (404)
+# --------------------------------------------------
+# Prometheus Metrics Endpoint
+# --------------------------------------------------
+
+@app.route("/metrics")
+def metrics():
+    return generate_latest(), 200, {
+        "Content-Type": CONTENT_TYPE_LATEST
+    }
+
+
+# --------------------------------------------------
+# Error Handlers
+# --------------------------------------------------
+
 @app.errorhandler(404)
 def page_not_found(error):
     return jsonify({
@@ -112,7 +187,6 @@ def page_not_found(error):
     }), 404
 
 
-# Handle internal server errors (500)
 @app.errorhandler(500)
 def internal_server_error(error):
     return jsonify({
@@ -120,6 +194,10 @@ def internal_server_error(error):
         "message": "Something went wrong in the application."
     }), 500
 
+
+# --------------------------------------------------
+# Application Entry Point
+# --------------------------------------------------
 
 if __name__ == "__main__":
     app.run(
